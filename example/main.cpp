@@ -26,16 +26,29 @@ auto main(int argc, char** argv) -> int {
         rsabo::report_error(std::cerr, result);
     }
 
-    rsabo::timer t1(2s, []() {
+    rsabo::timer t1;
+
+    std::promise<int32_t> promise{};
+    std::future<int32_t> future = promise.get_future();
+
+    t1.arm(2s, std::move(promise), []() {
         static int32_t counter = 0;
         std::cout << ++counter << std::endl;
     });
 
-    if (t.error()) {
-        rsabo::report_error(std::cerr, t.error());
+    std::this_thread::sleep_for(15s);
+
+    result = t1.disarm();
+
+    if (result) {
+        rsabo::report_error(std::cerr, result);
     }
 
-    std::this_thread::sleep_for(15s);
+    result = future.get();
+
+    if (result) {
+        rsabo::report_error(std::cerr, result);
+    }
 
     return EXIT_SUCCESS;
 }

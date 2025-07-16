@@ -1,5 +1,5 @@
-#ifndef SABO_TIMER_H
-#define SABO_TIMER_H
+#ifndef RSABO_TIMER_H
+#define RSABO_TIMER_H
 
 #pragma once
 
@@ -49,8 +49,7 @@ enum class timer_clock_t : int {
 
 class timer {
     timer_clock_t clock_type_{timer_clock_t::clock_monotonic};
-    int32_t descriptor_{-1};
-    std::atomic<int> error_{};
+    std::atomic<int32_t> descriptor_{-1};
 
     public:
     timer() noexcept {
@@ -62,54 +61,11 @@ class timer {
         [[maybe_unused]] auto const result = open();
     }
 
-    template <typename Period>
-    explicit timer( duration<Period>&& interval,
-                    timer_clock_t clock_type = timer_clock_t::clock_monotonic) noexcept
-    : clock_type_(clock_type) {
-        error_ = open();
-        if (error_ == 0) {
-            error_ = arm(std::forward<duration<Period>>(interval));
-        }
-    }
-
-    template <typename Period, typename Function, typename... Args>
-    explicit timer( duration<Period>&& interval, timer_clock_t clock_type,
-                    Function&& func, Args&&... args) noexcept
-    : clock_type_(clock_type) {
-        error_ = open();
-        if (error_ == 0) {
-            if (arm(std::forward<duration<Period>>(interval)) == 0) {
-                using tuple = std::tuple<std::decay_t<Function>, std::decay_t<Args>...>;
-                auto decay_copied = std::make_unique<tuple>(std::forward<Function>(func), std::forward<Args>(args)...);
-
-                std::thread([this](decltype(decay_copied)&& params) {
-                    while (!disarmed()) {
-                        error_ = wait();
-                        if (error_ == 0) {
-                            invoke<tuple>(tuple(*params), std::make_index_sequence<1 + sizeof...(Args)>{});
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }, std::move(decay_copied)).detach();
-            }
-        }
-    }
-
-    template <typename Period, typename Function, typename... Args>
-    explicit timer(duration<Period>&& interval, Function&& func, Args&&... args) noexcept
-    : timer(std::forward<duration<Period>>(interval),
-            timer_clock_t::clock_monotonic,
-            std::forward<Function>(func),
-            std::forward<Args>(args)...) {
-    }
-
     timer(const timer&) = delete;
 
     timer(timer&& other) noexcept
     : clock_type_(other.clock_type_) {
-        auto const tmp = other.descriptor_;
+        const int32_t tmp = other.descriptor_;
         other.descriptor_ = -1;
         descriptor_ = tmp;
     }
@@ -118,7 +74,7 @@ class timer {
 
     timer& operator=(timer&& other) noexcept {
         if (this != &other) {
-            auto const tmp = other.descriptor_;
+            const int32_t tmp = other.descriptor_;
             other.descriptor_ = -1;
             descriptor_ = tmp;
 
@@ -136,13 +92,44 @@ class timer {
         return descriptor_ >= 0;
     }
 
-    [[nodiscard]] int32_t error() const noexcept {
-        return error_;
-    }
-
     template <typename Period>
     [[nodiscard]] int32_t arm(duration<Period>&& interval) noexcept {
         return arm(std::chrono::duration_cast<std::chrono::nanoseconds>(interval).count());
+    }
+
+    template <typename Period, typename Function, typename... Args>
+    void arm(duration<Period>&& interval,
+             std::promise<int32_t>&& promise,
+             Function&& func, Args&&... args) noexcept {
+        if (descriptor_ == -1) {
+            promise.set_value(-1);
+        }
+        else {
+            auto result = arm(std::forward<duration<Period>>(interval));
+
+            if (result == 0) {
+                using tuple = std::tuple<std::decay_t<Function>, std::decay_t<Args>...>;
+                auto decay_copied = std::make_unique<tuple>(std::forward<Function>(func), std::forward<Args>(args)...);
+
+                std::thread([this](std::promise<int32_t>&& p, decltype(decay_copied)&& params) {
+                    int32_t result = 0;
+                    while (!disarmed()) {
+                        result = wait();
+                        if (result == 0) {
+                            invoke<tuple>(tuple(*params), std::make_index_sequence<1 + sizeof...(Args)>{});
+                        }
+                        else {
+                            break;
+                        }
+                    }
+
+                    p.set_value(result);
+                }, std::forward<std::promise<int32_t>>(promise), std::move(decay_copied)).detach();
+            }
+            else {
+                promise.set_value(result);
+            }
+        }
     }
 
     [[nodiscard]] int32_t disarm() noexcept;
@@ -156,4 +143,4 @@ private:
     [[nodiscard]] int32_t arm(int64_t nanoseconds) noexcept;
 };
 }
-#endif //SABO_TIMER_H
+#endif //RSABO_TIMER_H
