@@ -7,8 +7,8 @@
 #include <tuple>
 #include <chrono>
 #include <thread>
-#include <atomic>
 #include <future>
+#include <shared_mutex>
 #include <string_view>
 #include <source_location>
 
@@ -49,7 +49,8 @@ enum class timer_clock_t : int {
 
 class timer {
     timer_clock_t clock_type_{timer_clock_t::clock_monotonic};
-    std::atomic<int32_t> descriptor_{-1};
+    int32_t descriptor_{-1};
+    mutable std::shared_mutex mutex_{};
 
     public:
     timer() noexcept {
@@ -65,15 +66,19 @@ class timer {
 
     timer(timer&& other) noexcept
     : clock_type_(other.clock_type_) {
+        std::unique_lock lock(mutex_);
         const int32_t tmp = other.descriptor_;
         other.descriptor_ = -1;
         descriptor_ = tmp;
+
+        clock_type_ = other.clock_type_;
     }
 
     timer& operator=(const timer&) = delete;
 
     timer& operator=(timer&& other) noexcept {
         if (this != &other) {
+            std::unique_lock lock(mutex_);
             const int32_t tmp = other.descriptor_;
             other.descriptor_ = -1;
             descriptor_ = tmp;
@@ -88,19 +93,20 @@ class timer {
         [[maybe_unused]] auto const result = close();
     };
 
-    bool valid() const noexcept {
+    [[nodiscard]] bool valid() const noexcept {
+        std::shared_lock lock(mutex_);
         return descriptor_ >= 0;
     }
 
     template <typename Period>
-    [[nodiscard]] int32_t arm(duration<Period>&& interval) noexcept {
+    [[nodiscard]] int32_t arm(duration<Period>&& interval) const noexcept {
         return arm(std::chrono::duration_cast<std::chrono::nanoseconds>(interval).count());
     }
 
     template <typename Period, typename Function, typename... Args>
     void arm(duration<Period>&& interval,
              std::promise<int32_t>&& promise,
-             Function&& func, Args&&... args) noexcept {
+             Function&& func, Args&&... args) const noexcept {
         if (descriptor_ == -1) {
             promise.set_value(-1);
         }
@@ -132,15 +138,15 @@ class timer {
         }
     }
 
-    [[nodiscard]] int32_t disarm() noexcept;
-    [[nodiscard]] bool disarmed() noexcept;
-    [[nodiscard]] int32_t wait() noexcept;
+    [[nodiscard]] int32_t disarm() const noexcept;
+    [[nodiscard]] bool disarmed() const noexcept;
+    [[nodiscard]] int32_t wait() const noexcept;
 
 private:
     [[nodiscard]] int32_t open() noexcept;
     [[nodiscard]] int32_t close() noexcept;
 
-    [[nodiscard]] int32_t arm(int64_t nanoseconds) noexcept;
+    [[nodiscard]] int32_t arm(int64_t nanoseconds) const noexcept;
 };
 }
 #endif //RSABO_TIMER_H

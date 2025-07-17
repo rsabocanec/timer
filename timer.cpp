@@ -35,7 +35,9 @@ static_assert(
 );
 
 // timer implementation
-int32_t timer::arm(int64_t nanoseconds) noexcept {
+int32_t timer::arm(int64_t nanoseconds) const noexcept {
+    std::shared_lock lock(mutex_);
+
     if (descriptor_ == -1) {
         return -1;
     }
@@ -59,7 +61,9 @@ int32_t timer::arm(int64_t nanoseconds) noexcept {
     return 0;
 }
 
-int32_t timer::disarm() noexcept {
+int32_t timer::disarm() const noexcept {
+    std::unique_lock lock(mutex_);
+
     if (descriptor_ == -1) {
         return -1;
     }
@@ -75,7 +79,9 @@ int32_t timer::disarm() noexcept {
     return 0;
 }
 
-bool timer::disarmed() noexcept {
+bool timer::disarmed() const noexcept {
+    std::shared_lock lock(mutex_);
+
     if (descriptor_ != -1) {
         struct itimerspec period{};
         if (::timerfd_gettime(descriptor_, &period) != -1) {
@@ -88,7 +94,8 @@ bool timer::disarmed() noexcept {
     return true;
 }
 
-int32_t timer::wait() noexcept {
+int32_t timer::wait() const noexcept {
+    std::unique_lock lock(mutex_);
     if (descriptor_ == -1) {
         return -1;
     }
@@ -106,11 +113,18 @@ int32_t timer::wait() noexcept {
 }
 
 int32_t timer::open() noexcept {
+    auto const result = close();
+    if (result != 0) {
+        return result;
+    }
+
+    std::unique_lock lock(mutex_);
     descriptor_ = ::timerfd_create(static_cast<int>(clock_type_), 0);
     return descriptor_ == -1 ? errno : 0;
 }
 
 int32_t timer::close() noexcept {
+    std::unique_lock lock(mutex_);
     if (descriptor_ != -1) {
         auto const result = ::close(descriptor_);
         if (result == -1) {
