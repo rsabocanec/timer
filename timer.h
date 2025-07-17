@@ -10,6 +10,7 @@
 #include <future>
 #include <shared_mutex>
 #include <string_view>
+#include <tuple>
 #include <source_location>
 
 namespace std {
@@ -48,6 +49,7 @@ enum class timer_clock_t : int {
 };
 
 class timer {
+protected:
     timer_clock_t clock_type_{timer_clock_t::clock_monotonic};
     int32_t descriptor_{-1};
     mutable std::shared_mutex mutex_{};
@@ -89,7 +91,7 @@ class timer {
         return *this;
     }
 
-    ~timer() {
+    virtual ~timer() {
         [[maybe_unused]] auto const result = close();
     };
 
@@ -142,11 +144,33 @@ class timer {
     [[nodiscard]] bool disarmed() const noexcept;
     [[nodiscard]] int32_t wait() const noexcept;
 
-private:
+protected:
     [[nodiscard]] int32_t open() noexcept;
     [[nodiscard]] int32_t close() noexcept;
 
     [[nodiscard]] int32_t arm(int64_t nanoseconds) const noexcept;
+
+    using timer_interval = std::tuple<int32_t, int32_t, int32_t, int32_t>;
+    [[nodiscard]] virtual int32_t timer_spec(int64_t nanoseconds, timer_interval &interval) const noexcept;
+};
+
+class deadline : public timer {
+public:
+    deadline() = default;
+
+    explicit deadline(timer_clock_t clock_type) noexcept
+    : timer(clock_type) {
+    }
+
+    deadline(const deadline&) = delete;
+    deadline(deadline&& other) = default;
+
+    deadline& operator=(const deadline&) = delete;
+    deadline& operator=(deadline&& other) = default;
+
+    ~deadline() override = default;
+
+    [[nodiscard]] int32_t timer_spec(int64_t nanoseconds, timer_interval &interval) const noexcept override;
 };
 }
 #endif //RSABO_TIMER_H

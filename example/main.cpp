@@ -77,5 +77,26 @@ auto main(int argc, char** argv) -> int {
     }
     }
 
+    {
+    std::cout << "Deadline example\n";
+    rsabo::deadline dl;
+
+    std::promise<int32_t> promise{};
+    std::future<int32_t> future = promise.get_future();
+
+    dl.arm(2s, std::move(promise), []() {
+        static int32_t counter = 0;
+        std::cout << ++counter << std::endl;
+    });
+
+    std::this_thread::sleep_for(7500ms);
+
+    auto const result = future.get();
+
+    if (result) {
+        rsabo::report_error(std::cerr, result);
+    }
+    }
+
     return EXIT_SUCCESS;
 }

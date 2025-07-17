@@ -35,40 +35,6 @@ static_assert(
 );
 
 // timer implementation
-int32_t timer::arm(int64_t nanoseconds) const noexcept {
-    if (nanoseconds < 0) {
-        return EINVAL;
-    }
-
-    if (nanoseconds == 0) {
-        return 0;
-    }
-
-    std::shared_lock lock(mutex_);
-
-    if (descriptor_ == -1) {
-        return -1;
-    }
-
-    struct timespec now{};
-
-    if (::clock_gettime(static_cast<int>(clock_type_), &now) != 0) {
-        return errno;
-    }
-    else {
-        const struct itimerspec its = {
-            .it_interval = {.tv_sec = nanoseconds / 1'000'000'000, .tv_nsec = nanoseconds % 1'000'000'000},
-            .it_value = {.tv_sec = now.tv_sec + nanoseconds / 1'000'000'000, .tv_nsec = now.tv_nsec}
-        };
-
-        if (::timerfd_settime(descriptor_, TFD_TIMER_ABSTIME, &its, nullptr) == -1) {
-            return errno;
-        }
-    }
-
-    return 0;
-}
-
 int32_t timer::disarm() const noexcept {
     std::unique_lock lock(mutex_);
 
@@ -138,6 +104,76 @@ int32_t timer::close() noexcept {
         if (result == -1) {
             return errno;
         }
+    }
+
+    return 0;
+}
+
+int32_t timer::arm(int64_t nanoseconds) const noexcept {
+    if (nanoseconds < 0) {
+        return EINVAL;
+    }
+
+    if (nanoseconds == 0) {
+        return 0;
+    }
+
+    std::shared_lock lock(mutex_);
+
+    if (descriptor_ == -1) {
+        return -1;
+    }
+
+    timer_interval interval{};
+
+    auto const result = timer_spec(nanoseconds, interval);
+    if (result != 0) {
+        return result;
+    }
+
+    const struct itimerspec its = {
+        .it_interval = {.tv_sec = std::get<0>(interval), .tv_nsec = std::get<1>(interval)},
+        .it_value = {.tv_sec = std::get<2>(interval), .tv_nsec = std::get<3>(interval)}
+    };
+
+    if (::timerfd_settime(descriptor_, TFD_TIMER_ABSTIME, &its, nullptr) == -1) {
+        return errno;
+    }
+
+    return 0;
+}
+
+int32_t timer::timer_spec(int64_t nanoseconds, timer_interval &interval) const noexcept {
+    struct timespec now{};
+
+    if (::clock_gettime(static_cast<int>(clock_type_), &now) != 0) {
+        return errno;
+    }
+    else {
+        interval = {
+            nanoseconds / 1'000'000'000,
+            nanoseconds % 1'000'000'000,
+            now.tv_sec + nanoseconds / 1'000'000'000,
+            now.tv_nsec
+        };
+    }
+
+    return 0;
+}
+
+int32_t deadline::timer_spec(int64_t nanoseconds, timer_interval &interval) const noexcept {
+    struct timespec now{};
+
+    if (::clock_gettime(static_cast<int>(clock_type_), &now) != 0) {
+        return errno;
+    }
+    else {
+        interval = {
+            0,
+            0,
+            now.tv_sec + nanoseconds / 1'000'000'000,
+            now.tv_nsec
+        };
     }
 
     return 0;
