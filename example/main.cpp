@@ -46,9 +46,25 @@ auto main(int argc, char** argv) -> int {
         std::cout << ++counter << std::endl;
     });
 
-    std::this_thread::sleep_for(14500ms);
+    std::this_thread::sleep_for(7500ms);
 
-    auto result = t.disarm();
+    auto result = t.arm(2500ms);
+
+    if (result) {
+        rsabo::report_error(std::cerr, result);
+    }
+
+    std::this_thread::sleep_for(7400ms);
+
+    result = t.arm(500ms);
+
+    if (result) {
+        rsabo::report_error(std::cerr, result);
+    }
+
+    std::this_thread::sleep_for(4900ms);
+
+    result = t.disarm();
 
     if (result) {
         rsabo::report_error(std::cerr, result);

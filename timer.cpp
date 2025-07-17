@@ -36,6 +36,14 @@ static_assert(
 
 // timer implementation
 int32_t timer::arm(int64_t nanoseconds) const noexcept {
+    if (nanoseconds < 0) {
+        return EINVAL;
+    }
+
+    if (nanoseconds == 0) {
+        return 0;
+    }
+
     std::shared_lock lock(mutex_);
 
     if (descriptor_ == -1) {
