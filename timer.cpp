@@ -12,7 +12,7 @@
 #include <err.h>
 #include <unistd.h>
 
-namespace rsabo {
+namespace rsabocanec {
 void report_error(
     std::ostream& os,
     int32_t error_num,

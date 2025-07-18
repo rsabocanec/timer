@@ -8,18 +8,18 @@ auto main(int argc, char** argv) -> int {
     {
     std::cout << "Timer example #1\n";
 
-    rsabo::timer t;
+    rsabocanec::timer t;
     auto result = t.arm(1s);
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
 
     for (auto i = 0; i < 10; ++i) {
         result = t.wait();
 
         if (result) {
-            rsabo::report_error(std::cerr, result);
+            rsabocanec::report_error(std::cerr, result);
         }
         else {
             static int32_t counter = 0;
@@ -30,13 +30,13 @@ auto main(int argc, char** argv) -> int {
     result = t.disarm();
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
     }
 
     {
     std::cout << "Timer example #2\n";
-    rsabo::timer t;
+    rsabocanec::timer t;
 
     std::promise<int32_t> promise{};
     std::future<int32_t> future = promise.get_future();
@@ -51,7 +51,7 @@ auto main(int argc, char** argv) -> int {
     auto result = t.arm(2500ms);
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
 
     std::this_thread::sleep_for(7400ms);
@@ -59,7 +59,7 @@ auto main(int argc, char** argv) -> int {
     result = t.arm(500ms);
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
 
     std::this_thread::sleep_for(4900ms);
@@ -67,19 +67,19 @@ auto main(int argc, char** argv) -> int {
     result = t.disarm();
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
 
     result = future.get();
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
     }
 
     {
     std::cout << "Deadline example\n";
-    rsabo::deadline dl;
+    rsabocanec::deadline dl;
 
     std::promise<int32_t> promise{};
     std::future<int32_t> future = promise.get_future();
@@ -94,7 +94,7 @@ auto main(int argc, char** argv) -> int {
     auto const result = future.get();
 
     if (result) {
-        rsabo::report_error(std::cerr, result);
+        rsabocanec::report_error(std::cerr, result);
     }
     }
 
